@@ -24,6 +24,14 @@ GOOGLE_CLIENT_SECRET = os.environ["GOOGLE_CLIENT_SECRET"]
 GOOGLE_REFRESH_TOKEN = os.environ["GOOGLE_REFRESH_TOKEN"]
 GOOGLE_DRIVE_FOLDER_ID = os.environ["GOOGLE_DRIVE_FOLDER_ID"]
 
+import os
+
+print("GOOGLE_CLIENT_ID exists:", bool(os.getenv("GOOGLE_CLIENT_ID")))
+print("GOOGLE_CLIENT_SECRET exists:", bool(os.getenv("GOOGLE_CLIENT_SECRET")))
+print("GOOGLE_REFRESH_TOKEN exists:", bool(os.getenv("GOOGLE_REFRESH_TOKEN")))
+print("GOOGLE_DRIVE_FOLDER_ID exists:", bool(os.getenv("GOOGLE_DRIVE_FOLDER_ID")))
+print("GOOGLE_REFRESH_TOKEN length:", len(os.getenv("GOOGLE_REFRESH_TOKEN", "")))
+
 # =========================
 # 기본 설정
 # =========================
