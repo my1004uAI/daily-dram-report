@@ -61,7 +61,7 @@ cutoff_utc = now_utc - datetime.timedelta(days=1)
 
 today_ymd = now_kst.strftime("%Y%m%d")
 today_dash = now_kst.strftime("%Y-%m-%d")
-file_name = f"DRAM_논문_특허_ChatGPT_{today_ymd}.docx"
+file_name = f"DRAM_논문_특허_GitHub_{today_ymd}.docx"
 
 # =========================
 # 유틸
