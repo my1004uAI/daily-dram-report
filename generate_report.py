@@ -42,19 +42,7 @@ COMPANY_KEYWORDS = {
     "CXMT": ["cxmt", "changxin", "changxin memory", "changxin memory technologies"],
 }
 
-MAJOR_PUBLISHER_HINTS = {
-    "IEEE": ["ieee", "ieeexplore.ieee.org"],
-    "ACM": ["acm", "dl.acm.org"],
-    "Springer": ["springer", "springer.com", "link.springer.com"],
-    "Elsevier": ["elsevier", "sciencedirect.com"],
-    "Wiley": ["wiley", "onlinelibrary.wiley.com"],
-    "Nature": ["nature", "nature.com"],
-    "MDPI": ["mdpi", "mdpi.com"],
-    "IOP": ["iop", "iopscience.iop.org"],
-}
-
 ARXIV_MAX_RESULTS = 30
-CROSSREF_ROWS = 8
 
 KST = datetime.timezone(datetime.timedelta(hours=9))
 now_kst = datetime.datetime.now(KST)
@@ -81,37 +69,6 @@ def build_company_fallback(company: str) -> str:
 
 def normalize_text(*parts):
     return " ".join([p or "" for p in parts]).lower()
-
-
-def norm_text(s):
-    s = (s or "").lower()
-    s = re.sub(r"[^a-z0-9 ]+", " ", s)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
-
-
-def score_title_match(a, b):
-    a_n = norm_text(a)
-    b_n = norm_text(b)
-    if not a_n or not b_n:
-        return 0.0
-    if a_n == b_n:
-        return 1.0
-    a_words = set(a_n.split())
-    b_words = set(b_n.split())
-    if not a_words or not b_words:
-        return 0.0
-    overlap = len(a_words & b_words) / max(len(a_words), len(b_words))
-    prefix_bonus = 0.15 if a_n[:80] == b_n[:80] else 0.0
-    return min(1.0, overlap + prefix_bonus)
-
-
-def detect_publisher_name(url="", container_title="", publisher_name=""):
-    hay = " ".join([url or "", container_title or "", publisher_name or ""]).lower()
-    for pub, hints in MAJOR_PUBLISHER_HINTS.items():
-        if any(h in hay for h in hints):
-            return pub
-    return ""
 
 
 def summarize_paper_en(title: str, summary: str) -> str:
@@ -206,23 +163,26 @@ def translate_summary_to_korean(english_summary: str) -> str:
 
 
 def summarize_paper(title: str, summary: str) -> dict:
-    """
-    영문 요약 + 한글 번역 반환
-    """
     summary_en = summarize_paper_en(title, summary)
     summary_ko = translate_summary_to_korean(summary_en)
-    return {
-        "en": summary_en,
-        "ko": summary_ko,
-    }
+    return {"en": summary_en, "ko": summary_ko}
+
+
+def validate_arxiv_abs_url(url: str) -> bool:
+    """
+    실제 arXiv abs 링크 형식인지 검수
+    """
+    if not url:
+        return False
+    return bool(re.match(r"^https?://arxiv\.org/abs/[A-Za-z0-9.\-]+(v\d+)?$", url.strip()))
 
 
 def get_best_link(paper):
-    if paper.get("doi_url"):
-        return "DOI", paper["doi_url"]
-    if paper.get("official_url"):
-        return "공식 페이지", paper["official_url"]
-    if paper.get("abs_url"):
+    """
+    arXiv와 Google Scholar만 사용
+    arXiv 링크가 검증되면 우선 사용, 아니면 Scholar 검색 링크 사용
+    """
+    if paper.get("abs_url") and validate_arxiv_abs_url(paper["abs_url"]):
         return "arXiv", paper["abs_url"]
     return "Google Scholar", paper["scholar_url"]
 
@@ -268,23 +228,10 @@ def add_hyperlink(paragraph, text, url, color="0563C1", underline=True):
 def add_paper_block(doc, idx, paper):
     doc.add_paragraph(f"{idx}) {paper['title']}")
     doc.add_paragraph(f"   - 저자: {paper['authors'] or '정보 없음'}")
-    doc.add_paragraph(f"   - 공개시각(UTC): {paper['published']}")
 
     p = doc.add_paragraph()
     p.add_run(f"   - 대표 링크 ({paper['best_link_type']}): ")
     add_hyperlink(p, paper["best_link_url"], paper["best_link_url"])
-
-    if paper["official_url"]:
-        p = doc.add_paragraph()
-        p.add_run("   - 공식 페이지: ")
-        add_hyperlink(p, paper["official_url"], paper["official_url"])
-    else:
-        doc.add_paragraph("   - 공식 페이지: 링크 미확인")
-
-    if paper["doi"]:
-        doc.add_paragraph(f"   - DOI: {paper['doi']}")
-    else:
-        doc.add_paragraph("   - DOI: 링크 미확인")
 
     p = doc.add_paragraph()
     p.add_run("   - Google Scholar: ")
@@ -303,84 +250,14 @@ def add_company_block(doc, company, item):
     p.add_run(f"   - 대표 링크 ({item['link_type']}): ")
     add_hyperlink(p, item["url"], item["url"])
 
-    if item["official_url"]:
-        p = doc.add_paragraph()
-        p.add_run("   - 공식 페이지: ")
-        add_hyperlink(p, item["official_url"], item["official_url"])
-    else:
-        doc.add_paragraph("   - 공식 페이지: 링크 미확인")
-
     doc.add_paragraph(f"   - 비고: {item['note']}")
 
 
-def add_venue_block(doc, paper, venue_hint):
+def add_venue_block(doc, paper):
     doc.add_paragraph(f"- {paper['title']}")
-    doc.add_paragraph(f"  · 출판사/저널 힌트: {venue_hint}")
     p = doc.add_paragraph()
-    p.add_run("  · 링크: ")
+    p.add_run(f"  · 링크 ({paper['best_link_type']}): ")
     add_hyperlink(p, paper["best_link_url"], paper["best_link_url"])
-
-
-# =========================
-# Crossref
-# =========================
-def crossref_lookup(title, authors=""):
-    url = "https://api.crossref.org/works"
-    params = {
-        "query.title": title,
-        "rows": CROSSREF_ROWS,
-        "select": "DOI,title,author,URL,container-title,publisher"
-    }
-    headers = {
-        "User-Agent": "daily-dram-report/1.0 (mailto:example@example.com)"
-    }
-
-    try:
-        r = requests.get(url, params=params, headers=headers, timeout=30)
-        r.raise_for_status()
-        items = r.json().get("message", {}).get("items", [])
-    except Exception:
-        return None
-
-    best = None
-    best_score = 0.0
-    first_author = authors.split(",")[0].strip().lower() if authors else ""
-
-    for item in items:
-        cr_title = (item.get("title") or [""])[0]
-        score = score_title_match(title, cr_title)
-
-        if first_author and item.get("author"):
-            cr_authors = " ".join(
-                f"{a.get('given','')} {a.get('family','')}".strip()
-                for a in item.get("author", [])
-            ).lower()
-            last_token = first_author.split(" ")[-1] if first_author else ""
-            if last_token and last_token in cr_authors:
-                score += 0.1
-
-        if score > best_score:
-            best_score = score
-            best = item
-
-    if not best or best_score < 0.55:
-        return None
-
-    doi = best.get("DOI", "")
-    official_url = best.get("URL", "")
-    container_title = ((best.get("container-title") or [""])[0]).strip()
-    publisher_name = (best.get("publisher") or "").strip()
-    detected_pub = detect_publisher_name(official_url, container_title, publisher_name)
-
-    return {
-        "doi": doi,
-        "doi_url": f"https://doi.org/{doi}" if doi else "",
-        "official_url": official_url or "",
-        "container_title": container_title,
-        "publisher_name": publisher_name,
-        "publisher_detected": detected_pub,
-        "score": round(best_score, 3),
-    }
 
 
 # =========================
@@ -399,7 +276,9 @@ def search_arxiv():
         })
     )
 
-    feed = feedparser.parse(requests.get(api_url, timeout=30).text)
+    response = requests.get(api_url, timeout=30)
+    response.raise_for_status()
+    feed = feedparser.parse(response.text)
 
     all_papers = []
     recent_1d_papers = []
@@ -410,33 +289,17 @@ def search_arxiv():
         published = entry.published
         published_dt = parse_arxiv_date(published)
         authors = ", ".join(a.name for a in entry.authors) if hasattr(entry, "authors") else ""
-        arxiv_id = entry.id.split("/abs/")[-1] if "/abs/" in entry.id else entry.id
+        abs_url = entry.id.strip()
 
-        pdf_link = ""
-        for link in entry.links:
-            if getattr(link, "type", "") == "application/pdf":
-                pdf_link = link.href
-                break
-
-        cr = crossref_lookup(title, authors)
+        scholar_url = build_google_scholar_url(title)
 
         record = {
             "title": title,
             "summary": summary,
             "authors": authors,
-            "published": published,
             "published_dt": published_dt,
-            "arxiv_id": arxiv_id,
-            "abs_url": entry.id,
-            "pdf_url": pdf_link,
-            "scholar_url": build_google_scholar_url(title),
-            "doi": cr["doi"] if cr else "",
-            "doi_url": cr["doi_url"] if cr else "",
-            "official_url": (cr["official_url"] or cr["doi_url"]) if cr else "",
-            "publisher_name": cr["publisher_name"] if cr else "",
-            "publisher_detected": cr["publisher_detected"] if cr else "",
-            "container_title": cr["container_title"] if cr else "",
-            "crossref_score": cr["score"] if cr else None,
+            "abs_url": abs_url if validate_arxiv_abs_url(abs_url) else "",
+            "scholar_url": scholar_url,
         }
 
         record["best_link_type"], record["best_link_url"] = get_best_link(record)
@@ -474,7 +337,6 @@ def build_company_items(all_papers):
                 "title": best["title"],
                 "link_type": best["best_link_type"],
                 "url": best["best_link_url"],
-                "official_url": best["official_url"],
                 "note": "자동 검색 결과에서 회사 관련 항목 탐지",
             }
         else:
@@ -483,7 +345,6 @@ def build_company_items(all_papers):
                 "title": f"{company} 관련 DRAM/HBM 연구 검색",
                 "link_type": "Google Scholar",
                 "url": build_company_fallback(company),
-                "official_url": "",
                 "note": "최근 1일/자동 검색에서 직접 논문 미확인, 대체 검색 링크 제공",
             }
 
@@ -507,7 +368,7 @@ def create_docx(all_papers, recent_1d_papers, company_items, path):
     doc.add_heading(f"Daily DRAM Report ({today_ymd})", 0)
     doc.add_paragraph("실행 시각: 07:07 (Asia/Seoul 목표)")
     doc.add_paragraph("검색 범위: 최근 1일 DRAM / HBM / DDR5 / DDR6 / LPDDR5 / LPDDR6 관련 논문")
-    doc.add_paragraph("검색 소스: arXiv 자동 검색 + Crossref DOI/공식 페이지 보강")
+    doc.add_paragraph("검색 소스: arXiv 자동 검색 + Google Scholar 검색 링크")
 
     doc.add_heading("0. 오늘의 요약", level=1)
     doc.add_paragraph(f"- 최근 1일 신규 논문 수: {len(recent_1d_papers)}건")
@@ -532,22 +393,21 @@ def create_docx(all_papers, recent_1d_papers, company_items, path):
     for company, item in company_items.items():
         add_company_block(doc, company, item)
 
-    doc.add_heading("4. 주요 학회/저널 힌트", level=1)
+    doc.add_heading("4. 참고 링크", level=1)
     shown = 0
     for paper in all_papers:
-        venue_hint = paper["publisher_detected"] or paper["publisher_name"] or paper["container_title"]
-        if venue_hint:
-            add_venue_block(doc, paper, venue_hint)
-            shown += 1
+        add_venue_block(doc, paper)
+        shown += 1
         if shown >= 5:
             break
     if shown == 0:
         doc.add_paragraph("자동 탐지 결과 없음")
 
     doc.add_heading("5. 메모", level=1)
-    doc.add_paragraph("- 최근 1일 결과와 참고 논문을 분리해 혼동을 줄였다.")
-    doc.add_paragraph("- 각 항목에는 DOI, 공식 페이지, arXiv, Google Scholar 중 최소 1개 링크를 보장하도록 구성했다.")
-    doc.add_paragraph("- 회사 4개는 직접 탐지 실패 시에도 대체 검색 링크를 제공한다.")
+    doc.add_paragraph("- 링크는 arXiv와 Google Scholar만 유지했다.")
+    doc.add_paragraph("- DOI, 공식 페이지, 공개시각은 문서에서 제거했다.")
+    doc.add_paragraph("- arXiv 링크는 실제 API 응답의 abs URL만 사용해 검수했다.")
+    doc.add_paragraph("- Google Scholar는 검색 링크만 제공하며, 가상 논문 링크는 생성하지 않았다.")
     doc.add_paragraph("- 문서 내 URL은 클릭 가능한 하이퍼링크로 삽입했다.")
     doc.add_paragraph("- 요약은 영문 요약 생성 후 한글 번역을 추가하는 방식으로 구성했다.")
 
