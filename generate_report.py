@@ -114,57 +114,107 @@ def detect_publisher_name(url="", container_title="", publisher_name=""):
     return ""
 
 
-def summarize_paper(title: str, summary: str) -> str:
+def summarize_paper_en(title: str, summary: str) -> str:
     """
-    영어 초록을 규칙 기반 한글 요약으로 변환
+    영어 초록을 바탕으로 영문 요약 생성
     """
     text = re.sub(r"\s+", " ", (summary or "").strip())
     title_l = (title or "").lower()
     text_l = text.lower()
 
     if not text:
-        return "초록 정보 없음"
+        return "No abstract information is available."
 
-    topic = "이 논문은 메모리 시스템 관련 연구를 다룬다."
-    contribution = "핵심 기여 내용은 초록에서 자동 추출되지 않았다."
-    effect = "성능, 전력, 또는 효율 개선 가능성을 다룬다."
+    topic = "This paper studies a memory-system-related problem."
+    contribution = "It presents a technical approach or analysis."
+    impact = "It aims to improve performance, efficiency, or memory behavior."
 
     if "hbm" in title_l or "high bandwidth memory" in text_l:
-        topic = "이 논문은 HBM(고대역폭 메모리) 활용 또는 최적화를 다룬다."
+        topic = "This paper focuses on HBM-related architecture or optimization."
     elif "dram" in title_l or "dram" in text_l:
-        topic = "이 논문은 DRAM 구조, 활용, 또는 성능 최적화를 다룬다."
+        topic = "This paper focuses on DRAM architecture, usage, or optimization."
     elif "ddr5" in title_l or "ddr5" in text_l:
-        topic = "이 논문은 DDR5 관련 구조 또는 활용 이슈를 다룬다."
+        topic = "This paper discusses DDR5-related architecture or system issues."
     elif "ddr6" in title_l or "ddr6" in text_l:
-        topic = "이 논문은 DDR6 관련 구조 또는 활용 이슈를 다룬다."
+        topic = "This paper discusses DDR6-related architecture or system issues."
     elif "lpddr5" in title_l or "lpddr5" in text_l:
-        topic = "이 논문은 LPDDR5 관련 메모리 구조 또는 시스템 이슈를 다룬다."
+        topic = "This paper discusses LPDDR5-related architecture or system issues."
     elif "lpddr6" in title_l or "lpddr6" in text_l:
-        topic = "이 논문은 LPDDR6 관련 메모리 구조 또는 시스템 이슈를 다룬다."
+        topic = "This paper discusses LPDDR6-related architecture or system issues."
     elif "pim" in title_l or "processing in memory" in text_l or "compute-in-memory" in text_l or "cim" in title_l:
-        topic = "이 논문은 PIM/CIM 기반 메모리 연산 가속 구조를 다룬다."
+        topic = "This paper studies a PIM/CIM-based memory acceleration approach."
     elif "llm" in title_l or "large language model" in text_l:
-        topic = "이 논문은 LLM 추론 과정에서의 메모리 병목 또는 가속 구조를 다룬다."
+        topic = "This paper studies memory bottlenecks or acceleration for LLM inference."
 
     if any(k in text_l for k in ["propose", "proposes", "proposed", "introduce", "introduces", "present", "presents"]):
-        contribution = "새로운 구조 또는 기법을 제안한다."
+        contribution = "It proposes a new mechanism, architecture, or method."
     if any(k in text_l for k in ["architecture", "framework", "infrastructure", "prototype", "system"]):
-        contribution = "시스템 구조, 프레임워크, 또는 프로토타입 설계를 제시한다."
+        contribution = "It presents a system architecture, framework, or prototype design."
     if any(k in text_l for k in ["co-design", "codesign"]):
-        contribution = "하드웨어-소프트웨어 공동 설계 접근을 제시한다."
+        contribution = "It adopts a hardware-software co-design approach."
     if any(k in text_l for k in ["evaluation", "evaluate", "analysis", "study"]):
-        contribution = "구조 비교, 성능 평가, 또는 분석 결과를 제시한다."
+        contribution = "It provides evaluation, comparison, or analysis results."
 
     if any(k in text_l for k in ["energy efficiency", "energy-efficient", "power efficiency", "efficient"]):
-        effect = "전력 또는 에너지 효율 향상을 목표로 한다."
+        impact = "It aims to improve power or energy efficiency."
     if any(k in text_l for k in ["latency", "throughput", "performance", "bandwidth"]):
-        effect = "지연시간, 처리량, 또는 대역폭 개선을 목표로 한다."
+        impact = "It aims to improve latency, throughput, performance, or bandwidth."
     if any(k in text_l for k in ["memory-intensive", "memory bottleneck", "memory wall"]):
-        effect = "메모리 병목 완화를 주요 목표로 한다."
+        impact = "It aims to reduce memory bottlenecks."
     if any(k in text_l for k in ["edge", "edge device", "edge npu"]):
-        effect = "엣지 환경에서의 자원 제약 완화를 목표로 한다."
+        impact = "It targets resource-constrained edge environments."
 
-    return f"{topic} {contribution} {effect}"
+    return f"{topic} {contribution} {impact}"
+
+
+def translate_summary_to_korean(english_summary: str) -> str:
+    """
+    영문 요약을 규칙 기반으로 한글 번역
+    """
+    if not english_summary:
+        return "요약 정보 없음"
+
+    translated = english_summary
+
+    replacements = [
+        ("This paper focuses on HBM-related architecture or optimization.", "이 논문은 HBM 관련 구조 또는 최적화를 다룬다."),
+        ("This paper focuses on DRAM architecture, usage, or optimization.", "이 논문은 DRAM 구조, 활용, 또는 최적화를 다룬다."),
+        ("This paper discusses DDR5-related architecture or system issues.", "이 논문은 DDR5 관련 구조 또는 시스템 이슈를 다룬다."),
+        ("This paper discusses DDR6-related architecture or system issues.", "이 논문은 DDR6 관련 구조 또는 시스템 이슈를 다룬다."),
+        ("This paper discusses LPDDR5-related architecture or system issues.", "이 논문은 LPDDR5 관련 구조 또는 시스템 이슈를 다룬다."),
+        ("This paper discusses LPDDR6-related architecture or system issues.", "이 논문은 LPDDR6 관련 구조 또는 시스템 이슈를 다룬다."),
+        ("This paper studies a PIM/CIM-based memory acceleration approach.", "이 논문은 PIM/CIM 기반 메모리 가속 구조를 다룬다."),
+        ("This paper studies memory bottlenecks or acceleration for LLM inference.", "이 논문은 LLM 추론 과정의 메모리 병목 또는 가속 구조를 다룬다."),
+        ("This paper studies a memory-system-related problem.", "이 논문은 메모리 시스템 관련 문제를 다룬다."),
+        ("It proposes a new mechanism, architecture, or method.", "새로운 메커니즘, 구조, 또는 기법을 제안한다."),
+        ("It presents a system architecture, framework, or prototype design.", "시스템 구조, 프레임워크, 또는 프로토타입 설계를 제시한다."),
+        ("It adopts a hardware-software co-design approach.", "하드웨어-소프트웨어 공동 설계 접근을 적용한다."),
+        ("It provides evaluation, comparison, or analysis results.", "평가, 비교, 또는 분석 결과를 제시한다."),
+        ("It presents a technical approach or analysis.", "기술적 접근 또는 분석 내용을 제시한다."),
+        ("It aims to improve power or energy efficiency.", "전력 또는 에너지 효율 향상을 목표로 한다."),
+        ("It aims to improve latency, throughput, performance, or bandwidth.", "지연시간, 처리량, 성능, 또는 대역폭 개선을 목표로 한다."),
+        ("It aims to reduce memory bottlenecks.", "메모리 병목 완화를 목표로 한다."),
+        ("It targets resource-constrained edge environments.", "자원이 제한된 엣지 환경을 대상으로 한다."),
+        ("It aims to improve performance, efficiency, or memory behavior.", "성능, 효율, 또는 메모리 동작 개선을 목표로 한다."),
+        ("No abstract information is available.", "초록 정보가 없다."),
+    ]
+
+    for en, ko in replacements:
+        translated = translated.replace(en, ko)
+
+    return translated
+
+
+def summarize_paper(title: str, summary: str) -> dict:
+    """
+    영문 요약 + 한글 번역 반환
+    """
+    summary_en = summarize_paper_en(title, summary)
+    summary_ko = translate_summary_to_korean(summary_en)
+    return {
+        "en": summary_en,
+        "ko": summary_ko,
+    }
 
 
 def get_best_link(paper):
@@ -240,7 +290,8 @@ def add_paper_block(doc, idx, paper):
     p.add_run("   - Google Scholar: ")
     add_hyperlink(p, paper["scholar_url"], paper["scholar_url"])
 
-    doc.add_paragraph(f"   - 한글 요약: {paper['short_summary']}")
+    doc.add_paragraph(f"   - 영문 요약: {paper['summary_en']}")
+    doc.add_paragraph(f"   - 한글 요약: {paper['summary_ko']}")
 
 
 def add_company_block(doc, company, item):
@@ -389,7 +440,10 @@ def search_arxiv():
         }
 
         record["best_link_type"], record["best_link_url"] = get_best_link(record)
-        record["short_summary"] = summarize_paper(title, summary)
+
+        summary_obj = summarize_paper(title, summary)
+        record["summary_en"] = summary_obj["en"]
+        record["summary_ko"] = summary_obj["ko"]
 
         all_papers.append(record)
 
@@ -495,7 +549,7 @@ def create_docx(all_papers, recent_1d_papers, company_items, path):
     doc.add_paragraph("- 각 항목에는 DOI, 공식 페이지, arXiv, Google Scholar 중 최소 1개 링크를 보장하도록 구성했다.")
     doc.add_paragraph("- 회사 4개는 직접 탐지 실패 시에도 대체 검색 링크를 제공한다.")
     doc.add_paragraph("- 문서 내 URL은 클릭 가능한 하이퍼링크로 삽입했다.")
-    doc.add_paragraph("- 영어 초록 대신 규칙 기반 한글 요약을 삽입했다.")
+    doc.add_paragraph("- 요약은 영문 요약 생성 후 한글 번역을 추가하는 방식으로 구성했다.")
 
     doc.save(path)
 
