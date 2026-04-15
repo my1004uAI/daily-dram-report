@@ -37,4 +37,4 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: dram-report
-          path: DRAM_논문_특허_ChatGPT_*.docx
+          path: DRAM_논문_특허_GitHub_*.docx
