@@ -62,7 +62,7 @@ now_utc = datetime.datetime.utcnow()
 cutoff_utc = now_utc - datetime.timedelta(days=1)
 
 today_ymd = now_kst.strftime("%Y%m%d")
-file_name = f"DRAM_논문_특허_ChatGPT_{today_ymd}.docx"
+file_name = f"DRAM_논문_특허_GitHub_{today_ymd}.docx"
 
 # =========================
 # 유틸
@@ -115,12 +115,56 @@ def detect_publisher_name(url="", container_title="", publisher_name=""):
 
 
 def summarize_paper(title: str, summary: str) -> str:
-    text = (summary or "").strip()
+    """
+    영어 초록을 규칙 기반 한글 요약으로 변환
+    """
+    text = re.sub(r"\s+", " ", (summary or "").strip())
+    title_l = (title or "").lower()
+    text_l = text.lower()
+
     if not text:
         return "초록 정보 없음"
-    short = text[:260].strip()
-    short = re.sub(r"\s+", " ", short)
-    return short
+
+    topic = "이 논문은 메모리 시스템 관련 연구를 다룬다."
+    contribution = "핵심 기여 내용은 초록에서 자동 추출되지 않았다."
+    effect = "성능, 전력, 또는 효율 개선 가능성을 다룬다."
+
+    if "hbm" in title_l or "high bandwidth memory" in text_l:
+        topic = "이 논문은 HBM(고대역폭 메모리) 활용 또는 최적화를 다룬다."
+    elif "dram" in title_l or "dram" in text_l:
+        topic = "이 논문은 DRAM 구조, 활용, 또는 성능 최적화를 다룬다."
+    elif "ddr5" in title_l or "ddr5" in text_l:
+        topic = "이 논문은 DDR5 관련 구조 또는 활용 이슈를 다룬다."
+    elif "ddr6" in title_l or "ddr6" in text_l:
+        topic = "이 논문은 DDR6 관련 구조 또는 활용 이슈를 다룬다."
+    elif "lpddr5" in title_l or "lpddr5" in text_l:
+        topic = "이 논문은 LPDDR5 관련 메모리 구조 또는 시스템 이슈를 다룬다."
+    elif "lpddr6" in title_l or "lpddr6" in text_l:
+        topic = "이 논문은 LPDDR6 관련 메모리 구조 또는 시스템 이슈를 다룬다."
+    elif "pim" in title_l or "processing in memory" in text_l or "compute-in-memory" in text_l or "cim" in title_l:
+        topic = "이 논문은 PIM/CIM 기반 메모리 연산 가속 구조를 다룬다."
+    elif "llm" in title_l or "large language model" in text_l:
+        topic = "이 논문은 LLM 추론 과정에서의 메모리 병목 또는 가속 구조를 다룬다."
+
+    if any(k in text_l for k in ["propose", "proposes", "proposed", "introduce", "introduces", "present", "presents"]):
+        contribution = "새로운 구조 또는 기법을 제안한다."
+    if any(k in text_l for k in ["architecture", "framework", "infrastructure", "prototype", "system"]):
+        contribution = "시스템 구조, 프레임워크, 또는 프로토타입 설계를 제시한다."
+    if any(k in text_l for k in ["co-design", "codesign"]):
+        contribution = "하드웨어-소프트웨어 공동 설계 접근을 제시한다."
+    if any(k in text_l for k in ["evaluation", "evaluate", "analysis", "study"]):
+        contribution = "구조 비교, 성능 평가, 또는 분석 결과를 제시한다."
+
+    if any(k in text_l for k in ["energy efficiency", "energy-efficient", "power efficiency", "efficient"]):
+        effect = "전력 또는 에너지 효율 향상을 목표로 한다."
+    if any(k in text_l for k in ["latency", "throughput", "performance", "bandwidth"]):
+        effect = "지연시간, 처리량, 또는 대역폭 개선을 목표로 한다."
+    if any(k in text_l for k in ["memory-intensive", "memory bottleneck", "memory wall"]):
+        effect = "메모리 병목 완화를 주요 목표로 한다."
+    if any(k in text_l for k in ["edge", "edge device", "edge npu"]):
+        effect = "엣지 환경에서의 자원 제약 완화를 목표로 한다."
+
+    return f"{topic} {contribution} {effect}"
 
 
 def get_best_link(paper):
@@ -142,9 +186,6 @@ def require_env(name, value):
 # DOCX 하이퍼링크
 # =========================
 def add_hyperlink(paragraph, text, url, color="0563C1", underline=True):
-    """
-    python-docx에서 클릭 가능한 외부 하이퍼링크 추가
-    """
     part = paragraph.part
     r_id = part.relate_to(url, RT.HYPERLINK, is_external=True)
 
@@ -174,12 +215,6 @@ def add_hyperlink(paragraph, text, url, color="0563C1", underline=True):
     return hyperlink
 
 
-def add_link_line(doc, label, url):
-    p = doc.add_paragraph()
-    p.add_run(label)
-    add_hyperlink(p, url, url)
-
-
 def add_paper_block(doc, idx, paper):
     doc.add_paragraph(f"{idx}) {paper['title']}")
     doc.add_paragraph(f"   - 저자: {paper['authors'] or '정보 없음'}")
@@ -205,7 +240,7 @@ def add_paper_block(doc, idx, paper):
     p.add_run("   - Google Scholar: ")
     add_hyperlink(p, paper["scholar_url"], paper["scholar_url"])
 
-    doc.add_paragraph(f"   - 요약: {paper['short_summary']}")
+    doc.add_paragraph(f"   - 한글 요약: {paper['short_summary']}")
 
 
 def add_company_block(doc, company, item):
@@ -420,13 +455,11 @@ def create_docx(all_papers, recent_1d_papers, company_items, path):
     doc.add_paragraph("검색 범위: 최근 1일 DRAM / HBM / DDR5 / DDR6 / LPDDR5 / LPDDR6 관련 논문")
     doc.add_paragraph("검색 소스: arXiv 자동 검색 + Crossref DOI/공식 페이지 보강")
 
-    # 요약
     doc.add_heading("0. 오늘의 요약", level=1)
     doc.add_paragraph(f"- 최근 1일 신규 논문 수: {len(recent_1d_papers)}건")
     doc.add_paragraph(f"- 자동 검색 전체 논문 수: {len(all_papers)}건")
     doc.add_paragraph("- 필수 기업 4개는 별도 섹션에서 확인 결과 또는 대체 검색 링크를 제공")
 
-    # 최근 1일 엄격 기준
     doc.add_heading("1. 최근 1일 논문 (엄격 기준)", level=1)
     if recent_1d_papers:
         for idx, paper in enumerate(recent_1d_papers[:5], 1):
@@ -434,7 +467,6 @@ def create_docx(all_papers, recent_1d_papers, company_items, path):
     else:
         doc.add_paragraph("신규 공개 논문 없음")
 
-    # 참고 논문
     doc.add_heading("2. 참고: 최근 공개 논문 (1일 초과)", level=1)
     if fallback_papers:
         for idx, paper in enumerate(fallback_papers, 1):
@@ -442,12 +474,10 @@ def create_docx(all_papers, recent_1d_papers, company_items, path):
     else:
         doc.add_paragraph("참고 논문 없음")
 
-    # 기업별
     doc.add_heading("3. 필수 기업 포함 항목", level=1)
     for company, item in company_items.items():
         add_company_block(doc, company, item)
 
-    # 학회/저널 힌트
     doc.add_heading("4. 주요 학회/저널 힌트", level=1)
     shown = 0
     for paper in all_papers:
@@ -460,12 +490,12 @@ def create_docx(all_papers, recent_1d_papers, company_items, path):
     if shown == 0:
         doc.add_paragraph("자동 탐지 결과 없음")
 
-    # 메모
     doc.add_heading("5. 메모", level=1)
     doc.add_paragraph("- 최근 1일 결과와 참고 논문을 분리해 혼동을 줄였다.")
     doc.add_paragraph("- 각 항목에는 DOI, 공식 페이지, arXiv, Google Scholar 중 최소 1개 링크를 보장하도록 구성했다.")
     doc.add_paragraph("- 회사 4개는 직접 탐지 실패 시에도 대체 검색 링크를 제공한다.")
     doc.add_paragraph("- 문서 내 URL은 클릭 가능한 하이퍼링크로 삽입했다.")
+    doc.add_paragraph("- 영어 초록 대신 규칙 기반 한글 요약을 삽입했다.")
 
     doc.save(path)
 
